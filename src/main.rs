@@ -25,6 +25,10 @@ fn main() {
                 "host",
                 "The remote address to which packets will be forwarded",
                 "REMOTE-ADDR");
+    opts.optopt("b",
+                "bind",
+                "The address on which to listen for incoming requests",
+                "REMOTE-ADDR");
 
     let matches = opts.parse(&args[1..])
         .expect("Incorrect parameters supplied!");
@@ -32,12 +36,16 @@ fn main() {
     let local_port: i32 = matches.opt_str("l").unwrap().parse().unwrap();
     let remote_port: i32 = matches.opt_str("r").unwrap().parse().unwrap();
     let remote_host = matches.opt_str("h").unwrap();
+    let bind_addr = match matches.opt_str("b") {
+        Some(addr) => addr,
+        None => "127.0.0.1".to_owned()
+    };
 
-    forward(local_port, &remote_host, remote_port);
+    forward(&bind_addr, local_port, &remote_host, remote_port);
 }
 
-fn forward(local_port: i32, remote_host: &str, remote_port: i32) {
-    let local_addr = format!("127.0.0.1:{}", local_port);
+fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32) {
+    let local_addr = format!("{}:{}", bind_addr, local_port);
     let local_addr_ref = &local_addr;
     let local = UdpSocket::bind(local_addr_ref)
         .expect(&format!("Unable to bind to {}", local_addr_ref));
