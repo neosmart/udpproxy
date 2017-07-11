@@ -57,9 +57,7 @@ fn main() {
 
 fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32) {
     let local_addr = format!("{}:{}", bind_addr, local_port);
-    let local_addr_ref = &local_addr;
-    let local = UdpSocket::bind(local_addr_ref)
-        .expect(&format!("Unable to bind to {}", local_addr_ref));
+    let local = UdpSocket::bind(&local_addr).expect(&format!("Unable to bind to {}", &local_addr));
     println!("Listening on {}", local.local_addr().unwrap());
 
     let remote_addr = format!("{}:{}", remote_host, remote_port);
@@ -95,10 +93,9 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                 let remote_addr_copy = remote_addr.clone();
                 thread::spawn(move|| {
                     let temp_outgoing_addr = format!("0.0.0.0:{}", rand::random::<u16>() + 1024);
-                    let temp_outgoing_addr_ref = &temp_outgoing_addr;
-                    println!("Establishing new forwarder for client {} on {}", src_addr, temp_outgoing_addr_ref);
-                    let local_to_remote = UdpSocket::bind(temp_outgoing_addr_ref)
-                        .expect(&format!("Failed to bind to transient address {}", temp_outgoing_addr_ref));
+                    println!("Establishing new forwarder for client {} on {}", src_addr, &temp_outgoing_addr);
+                    let local_to_remote = UdpSocket::bind(&temp_outgoing_addr)
+                        .expect(&format!("Failed to bind to transient address {}", &temp_outgoing_addr));
                     let local_to_remote2 = local_to_remote.try_clone().expect("Failed to clone client-specific connection to upstream!");
 
                     thread::spawn(move|| {
