@@ -7,6 +7,7 @@ use std::thread;
 use std::sync::mpsc::channel;
 use std::collections::HashMap;
 use std::net::UdpSocket;
+use std::time::Duration;
 
 fn print_usage(program: &str, opts: Options) {
     let program_path = std::path::PathBuf::from(program);
@@ -85,36 +86,99 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
         let (num_bytes, src_addr) = local.recv_from(&mut buf).expect("Didn't receive data");
 
         //we create a new thread for each unique client
-        let client_id = format!("{}", src_addr);
-        let sender = client_map.entry(client_id).or_insert_with(||
-            {
-                let local_send_queue = main_sender.clone();
-                let (sender, receiver) = channel::<Vec<u8>>();
-                let remote_addr_copy = remote_addr.clone();
-                thread::spawn(move|| {
-                    let temp_outgoing_addr = format!("0.0.0.0:{}", rand::random::<u16>() + 1024);
-                    println!("Establishing new forwarder for client {} on {}", src_addr, &temp_outgoing_addr);
-                    let local_to_remote = UdpSocket::bind(&temp_outgoing_addr)
-                        .expect(&format!("Failed to bind to transient address {}", &temp_outgoing_addr));
-                    let local_to_remote2 = local_to_remote.try_clone().expect("Failed to clone client-specific connection to upstream!");
+        let mut remove_existing = false;
+        loop {
+            println!("Received packet from client {}", src_addr);
 
+            let mut ignore_failure = true;
+            let client_id = format!("{}", src_addr);
+            let sender;
+            {
+                if remove_existing {
+                    println!("Removing existing forwarder from map.");
+                    client_map.remove(&client_id);
+                }
+                sender = client_map.entry(client_id.clone()).or_insert_with(|| {
+                    //we are creating a new listener now, so a failure to send shoud be treated as an error
+                    ignore_failure = false;
+
+                    let local_send_queue = main_sender.clone();
+                    let (sender, receiver) = channel::<Vec<u8>>();
+                    let remote_addr_copy = remote_addr.clone();
                     thread::spawn(move|| {
-                        let mut from_upstream = [0; 64 * 1024];
+                        let temp_outgoing_addr = format!("0.0.0.0:{}", 1024 + rand::random::<u16>());
+                        println!("Establishing new forwarder for client {} on {}", src_addr, &temp_outgoing_addr);
+                        let upstream_send = UdpSocket::bind(&temp_outgoing_addr)
+                            .expect(&format!("Failed to bind to transient address {}", &temp_outgoing_addr));
+                        let upstream_recv = upstream_send.try_clone()
+                            .expect("Failed to clone client-specific connection to upstream!");
+
+                        use std::sync::Arc;
+                        use std::sync::atomic::{AtomicBool, Ordering};
+                        let mut timeouts : u64 = 0;
+                        let dealer_closed = Arc::<AtomicBool>::new(AtomicBool::new(false));
+                        const TIMEOUT_UNIT: u64 = 1;
+
+                        let local_dealer_closed = dealer_closed.clone();
+                        thread::spawn(move|| {
+                            let mut from_upstream = [0; 64 * 1024];
+                            upstream_recv.set_read_timeout(Some(Duration::from_millis(TIMEOUT_UNIT + 100))).unwrap();
+                            loop {
+                                match upstream_recv.recv_from(&mut from_upstream) {
+                                    Ok((bytes_rcvd, _)) => {
+                                        let to_send = from_upstream[..bytes_rcvd].to_vec();
+                                        local_send_queue.send((src_addr, to_send))
+                                            .expect("Failed to queue response from upstream server for forwarding!");
+                                    },
+                                    Err(_) => {
+                                        if local_dealer_closed.load(Ordering::Relaxed) {
+                                            println!("Terminating forwarder threader for client {} due to timeout", src_addr);
+                                            break;
+                                        }
+                                    }
+                                };
+                            }
+                        });
+
                         loop {
-                            let (bytes_rcvd, _) = local_to_remote2.recv_from(&mut from_upstream).unwrap();
-                            let to_send = from_upstream[..bytes_rcvd].to_vec();
-                            local_send_queue.send((src_addr, to_send)).expect("Failed to queue response from upstream server for forwarding!");
+                            match receiver.recv_timeout(Duration::from_millis(TIMEOUT_UNIT)) {
+                                Ok(from_client) =>  {
+                                    upstream_send.send_to(from_client.as_slice(), &remote_addr_copy)
+                                        .expect(&format!("Failed to forward packet from client {} to upstream server!", src_addr));
+                                    timeouts = 0; //reset timeout count
+                                },
+                                Err(_) => {
+                                    timeouts += 1;
+                                    if timeouts >= 10 {
+                                            println!("Disconnecting forwarder for client {} due to timeout", src_addr);
+                                            dealer_closed.store(true, Ordering::Relaxed);
+                                        break;
+                                    }
+                                }
+                            };
                         }
                     });
-
-                    loop {
-                        let from_client = receiver.recv().unwrap();
-                        local_to_remote.send_to(from_client.as_slice(), &remote_addr_copy).expect(&format!("Failed to forward packet from client {} to upstream server!", src_addr));
-                    }
+                    sender
                 });
-                sender
-            });
-        let to_send = buf[..num_bytes].to_vec();
-        sender.send(to_send).expect(&format!("Failed to queue received datagram from client {} for sending to upstream server!", &src_addr));
+            }
+            let to_send = buf[..num_bytes].to_vec();
+            //sender.send(to_send).expect(&format!("Failed to queue received datagram from client {} for sending to upstream server!", &src_addr));
+            match sender.send(to_send) {
+                Ok(_) => {
+                    break;
+                }
+                Err(_) => {
+                    if !ignore_failure {
+                        panic!("Failed to send message to datagram forwarder for client {}",
+                               client_id);
+                    }
+                    //client previously timed out
+                    println!("New connection received from previously timed-out client {}",
+                             client_id);
+                    remove_existing = true;
+                    continue;
+                }
+            }
+        }
     }
 }
