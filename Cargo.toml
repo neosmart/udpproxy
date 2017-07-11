@@ -1,0 +1,8 @@
+[package]
+name = "udpproxy"
+version = "0.1.0"
+authors = ["Mahmoud Al-Qudsi <mqudsi@neosmart.net>"]
+
+[dependencies]
+getopts = "0.2"
+rand = "0.3"
