@@ -38,7 +38,7 @@ fn main() {
     let remote_host = matches.opt_str("h").unwrap();
     let bind_addr = match matches.opt_str("b") {
         Some(addr) => addr,
-        None => "127.0.0.1".to_owned()
+        None => "127.0.0.1".to_owned(),
     };
 
     forward(&bind_addr, local_port, &remote_host, remote_port);
@@ -59,13 +59,16 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                         local.local_addr().unwrap()));
     let (main_sender, main_receiver) = channel::<(_, Vec<u8>)>();
     thread::spawn(move || {
-                      println!("Started new thread to deal out responses to clients");
-                      loop {
-                          let (dest, buf) = main_receiver.recv().unwrap();
-                          let to_send = buf.as_slice();
-                          responder.send_to(to_send, dest).expect(&format!("Failed to forward response from upstream server to client {}", dest));
-                      }
-                  });
+        println!("Started new thread to deal out responses to clients");
+        loop {
+            let (dest, buf) = main_receiver.recv().unwrap();
+            let to_send = buf.as_slice();
+            responder
+                .send_to(to_send, dest)
+                .expect(&format!("Failed to forward response from upstream server to client {}",
+                                dest));
+        }
+    });
 
     let mut client_map = HashMap::new();
     let mut buf = [0; 64 * 1024];
