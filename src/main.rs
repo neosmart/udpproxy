@@ -8,6 +8,12 @@ use std::sync::mpsc::channel;
 use std::collections::HashMap;
 use std::net::UdpSocket;
 
+fn print_usage(program: &str, opts: Options) {
+    let brief = format!("Usage: {} [-b BIND_ADDR] -l LOCAL_PORT -h REMOTE_ADDR -r REMOTE_PORT",
+                        program);
+    print!("{}", opts.usage(&brief));
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
@@ -31,7 +37,10 @@ fn main() {
                 "REMOTE-ADDR");
 
     let matches = opts.parse(&args[1..])
-        .expect("Incorrect parameters supplied!");
+        .unwrap_or_else(|_| {
+                            print_usage(&program, opts);
+                            std::process::exit(-1);
+                        });
 
     let local_port: i32 = matches.opt_str("l").unwrap().parse().unwrap();
     let remote_port: i32 = matches.opt_str("r").unwrap().parse().unwrap();
