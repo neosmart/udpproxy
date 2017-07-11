@@ -24,19 +24,19 @@ fn main() {
     opts.reqopt("l",
                 "local-port",
                 "The local port to which udpproxy should bind to",
-                "PORT");
+                "LOCAL_PORT");
     opts.reqopt("r",
                 "remote-port",
                 "The remote port to which UDP packets should be forwarded",
-                "REMOTE-PORT");
+                "REMOTE_PORT");
     opts.reqopt("h",
                 "host",
                 "The remote address to which packets will be forwarded",
-                "REMOTE-ADDR");
+                "REMOTE_ADDR");
     opts.optopt("b",
                 "bind",
                 "The address on which to listen for incoming requests",
-                "REMOTE-ADDR");
+                "BIND_ADDR");
 
     let matches = opts.parse(&args[1..])
         .unwrap_or_else(|_| {
