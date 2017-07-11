@@ -11,7 +11,8 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
 
-const TIMEOUT: u64 = 3 * 60 * 1000; //3 minutes
+const TIMEOUT: u64 = 3 * 60 * 100; //3 minutes
+static mut DEBUG: bool = false;
 
 fn print_usage(program: &str, opts: Options) {
     let program_path = std::path::PathBuf::from(program);
@@ -42,6 +43,7 @@ fn main() {
                 "bind",
                 "The address on which to listen for incoming requests",
                 "BIND_ADDR");
+    opts.optflag("d", "debug", "Enable debug mode");
 
     let matches = opts.parse(&args[1..])
         .unwrap_or_else(|_| {
@@ -49,6 +51,9 @@ fn main() {
                             std::process::exit(-1);
                         });
 
+    unsafe {
+        DEBUG = matches.opt_present("d");
+    }
     let local_port: i32 = matches.opt_str("l").unwrap().parse().unwrap();
     let remote_port: i32 = matches.opt_str("r").unwrap().parse().unwrap();
     let remote_host = matches.opt_str("h").unwrap();
@@ -58,6 +63,17 @@ fn main() {
     };
 
     forward(&bind_addr, local_port, &remote_host, remote_port);
+}
+
+fn debug(msg: String) {
+    let debug: bool;
+    unsafe {
+        debug = DEBUG;
+    }
+
+    if debug {
+        println!("{}", msg);
+    }
 }
 
 fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32) {
@@ -73,7 +89,7 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                         local.local_addr().unwrap()));
     let (main_sender, main_receiver) = channel::<(_, Vec<u8>)>();
     thread::spawn(move || {
-        println!("Started new thread to deal out responses to clients");
+        debug(format!("Started new thread to deal out responses to clients"));
         loop {
             let (dest, buf) = main_receiver.recv().unwrap();
             let to_send = buf.as_slice();
@@ -92,13 +108,13 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
         //we create a new thread for each unique client
         let mut remove_existing = false;
         loop {
-            println!("Received packet from client {}", src_addr);
+            debug(format!("Received packet from client {}", src_addr));
 
             let mut ignore_failure = true;
             let client_id = format!("{}", src_addr);
 
             if remove_existing {
-                println!("Removing existing forwarder from map.");
+                debug(format!("Removing existing forwarder from map."));
                 client_map.remove(&client_id);
             }
 
@@ -111,7 +127,7 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                 let remote_addr_copy = remote_addr.clone();
                 thread::spawn(move|| {
                     let temp_outgoing_addr = format!("0.0.0.0:{}", 1024 + rand::random::<u16>());
-                    println!("Establishing new forwarder for client {} on {}", src_addr, &temp_outgoing_addr);
+                    debug(format!("Establishing new forwarder for client {} on {}", src_addr, &temp_outgoing_addr));
                     let upstream_send = UdpSocket::bind(&temp_outgoing_addr)
                         .expect(&format!("Failed to bind to transient address {}", &temp_outgoing_addr));
                     let upstream_recv = upstream_send.try_clone()
@@ -133,7 +149,7 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                                 },
                                 Err(_) => {
                                     if local_timed_out.load(Ordering::Relaxed) {
-                                        println!("Terminating forwarder threader for client {} due to timeout", src_addr);
+                                        debug(format!("Terminating forwarder threader for client {} due to timeout", src_addr));
                                         break;
                                     }
                                 }
@@ -151,7 +167,7 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                             Err(_) => {
                                 timeouts += 1;
                                 if timeouts >= 10 {
-                                    println!("Disconnecting forwarder for client {} due to timeout", src_addr);
+                                    debug(format!("Disconnecting forwarder for client {} due to timeout", src_addr));
                                     timed_out.store(true, Ordering::Relaxed);
                                     break;
                                 }
@@ -173,8 +189,8 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                                client_id);
                     }
                     //client previously timed out
-                    println!("New connection received from previously timed-out client {}",
-                             client_id);
+                    debug(format!("New connection received from previously timed-out client {}",
+                                  client_id));
                     remove_existing = true;
                     continue;
                 }
