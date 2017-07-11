@@ -9,8 +9,10 @@ use std::collections::HashMap;
 use std::net::UdpSocket;
 
 fn print_usage(program: &str, opts: Options) {
+    let program_path = std::path::PathBuf::from(program);
+    let program_name = program_path.file_stem().unwrap().to_str().unwrap();
     let brief = format!("Usage: {} [-b BIND_ADDR] -l LOCAL_PORT -h REMOTE_ADDR -r REMOTE_PORT",
-                        program);
+                        program_name);
     print!("{}", opts.usage(&brief));
 }
 
