@@ -149,7 +149,7 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                                 },
                                 Err(_) => {
                                     if local_timed_out.load(Ordering::Relaxed) {
-                                        debug(format!("Terminating forwarder threader for client {} due to timeout", src_addr));
+                                        debug(format!("Terminating forwarder thread for client {} due to timeout", src_addr));
                                         break;
                                     }
                                 }
