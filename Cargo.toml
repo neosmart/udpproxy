@@ -2,6 +2,13 @@
 name = "udpproxy"
 version = "0.1.0"
 authors = ["Mahmoud Al-Qudsi <mqudsi@neosmart.net>"]
+description = "Cross-platform multi-client UDP proxy"
+homepage = "https://github.com/neosmart/udpproxy"
+repository = "https://github.com/neosmart/udpproxy"
+readme = "README.md"
+keywords = ["proxy", "udp", "networking"]
+categories = ["command-line-utilities", "network-programming"]
+license = "MIT"
 
 [dependencies]
 getopts = "0.2"
