@@ -126,6 +126,9 @@ fn forward(bind_addr: &str, local_port: i32, remote_host: &str, remote_port: i32
                 let (sender, receiver) = channel::<Vec<u8>>();
                 let remote_addr_copy = remote_addr.clone();
                 thread::spawn(move|| {
+                    //regardless of which port we are listening to, we don't know which interface or IP
+                    //address the remote server is reachable via, so we bind the outgoing
+                    //connection to 0.0.0.0 in all cases.
                     let temp_outgoing_addr = format!("0.0.0.0:{}", 1024 + rand::random::<u16>());
                     debug(format!("Establishing new forwarder for client {} on {}", src_addr, &temp_outgoing_addr));
                     let upstream_send = UdpSocket::bind(&temp_outgoing_addr)
