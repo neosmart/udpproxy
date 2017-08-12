@@ -5,7 +5,7 @@ _a simple, cross-platform, multi-client UDP proxy_
 
 ## Usage
 
-`udpproxy` is a command-line application. One instance of `udpproxy` should be started for each remote endpoint you wish to proxy data to/from. All configuration is done via command-line arguments in keeping with the spirit of this project.
+`udpproxy` is a command-line application. One instance of `udpproxy` should be started for each remote endpoint you wish to proxy data to/from. All configuration is done via command-line arguments, in keeping with the spirit of this project.
 
 ```
 udpproxy [-b BIND_ADDR] -l LOCAL_PORT -h REMOTE_ADDR -r REMOTE_PORT
