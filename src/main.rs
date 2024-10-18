@@ -11,7 +11,7 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
 
-const TIMEOUT: u64 = 3 * 60 * 1000; //3 minutes
+const TIMEOUT: u64 = 3 * 60 * 100; // 3 minutes, after 10 rounds
 static mut DEBUG: bool = false;
 
 fn print_usage(program: &str, opts: Options) {
